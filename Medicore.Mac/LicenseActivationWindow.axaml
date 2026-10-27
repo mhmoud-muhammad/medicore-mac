@@ -1,0 +1,36 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Medicore.Mac.LicenseActivationWindow"
+        Title="تفعيل النظام - MEDICORE"
+        Icon="/Assets/medicore.png"
+        Width="540" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        FlowDirection="RightToLeft"
+        CanResize="False">
+    <StackPanel Margin="24" Spacing="10">
+        <TextBlock Text="تفعيل الترخيص" FontSize="22" FontWeight="Bold"/>
+
+        <TextBlock x:Name="StatusMessageText" TextWrapping="Wrap" Foreground="#B91C1C" IsVisible="False"/>
+
+        <TextBlock Text="بصمة هذا الجهاز (أرسلها للجهة المرخِّصة للحصول على ملف الترخيص):"
+                   TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,6,0,0"/>
+
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBox x:Name="HardwareIdText" Grid.Column="0" IsReadOnly="True" FlowDirection="LeftToRight"
+                     FontFamily="Menlo, Monaco, monospace" FontSize="17" Padding="8" TextAlignment="Center"/>
+            <Button Grid.Column="1" Content="نسخ" Width="70" Margin="8,0,0,0" HorizontalContentAlignment="Center"
+                    VerticalAlignment="Stretch" VerticalContentAlignment="Center" Click="CopyHardwareId_Click"/>
+        </Grid>
+        <TextBlock x:Name="CopiedText" Text="✓ تم نسخ البصمة" Foreground="#059669" IsVisible="False"/>
+
+        <TextBlock Text="بعد استلام ملف الترخيص (license.lic)، اضغط على الزر أدناه واخترْ الملف:"
+                   TextWrapping="Wrap" Margin="0,10,0,0"/>
+
+        <Button Content="📂 اختيار ملف الترخيص وتثبيته" Height="42" FontSize="15" HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Classes="primary"
+                Click="BrowseAndInstall_Click"/>
+
+        <TextBlock Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,14,0,0"
+                   Text="MEDICORE — نظام إدارة الصيدليات (نسخة الماك)"/>
+    </StackPanel>
+</Window>

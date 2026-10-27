@@ -1,0 +1,63 @@
+# بناء ملفات التثبيت DMG للماك تلقائياً على أجهزة ماك من GitHub (بدون جهاز تطوير عندك).
+#
+# مرة واحدة — Settings ← Secrets and variables ← Actions ← New repository secret:
+#   MEDICORE_CODE_KEY   محتوى ملف code.key (نفس المفتاح المحمَّل في أداة التراخيص)
+#   MEDICORE_C_TOKEN    Personal Access Token (صلاحية قراءة Contents لمستودع medicore-C-) — لقراءة نظام PHP منه
+#
+# التشغيل: Actions ← "بناء نسخة الماك" ← Run workflow (أدخل رقم الإصدار)، أو ارفع وسماً v1.2.0.
+# الناتج: Artifacts في صفحة التشغيل (MedicoreServer-<الإصدار>-AppleSilicon.dmg و -Intel.dmg).
+name: بناء نسخة الماك
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: رقم الإصدار
+        default: 1.0.0
+        required: true
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: نظام PHP من medicore-C-
+        uses: actions/checkout@v4
+        with:
+          repository: mhmoud-muhammad/medicore-C-
+          token: ${{ secrets.MEDICORE_C_TOKEN }}
+          path: _web
+          sparse-checkout: Medicore.Web
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: مفتاح الكود
+        env:
+          CODE_KEY: ${{ secrets.MEDICORE_CODE_KEY }}
+        run: |
+          if [ -z "$CODE_KEY" ]; then echo "::error::أضف السر MEDICORE_CODE_KEY (محتوى code.key)"; exit 1; fi
+          printf '%s' "$CODE_KEY" > "$RUNNER_TEMP/code.key"
+
+      - name: البناء
+        env:
+          VERSION_INPUT: ${{ github.event.inputs.version }}
+        run: |
+          VERSION="${VERSION_INPUT:-${GITHUB_REF_NAME#v}}"
+          ./build-mac.sh --version "$VERSION" --web _web/Medicore.Web --code-key "$RUNNER_TEMP/code.key"
+          rm -f "$RUNNER_TEMP/code.key"
+
+      - name: الاختبارات
+        env:
+          MEDICORE_PHP_DIR: _web/Medicore.Web
+        run: dotnet run --project Medicore.Mac.Tests -c Release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MedicoreServer-mac
+          path: dist/*.dmg
+          if-no-files-found: error

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- اسم الملف التنفيذي داخل الحزمة: Medicore Server.app/Contents/MacOS/MedicoreServer -->
+    <AssemblyName>MedicoreServer</AssemblyName>
+    <RootNamespace>Medicore.Mac</RootNamespace>
+    <Version>1.0.0</Version>
+    <ApplicationManifest />
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Medicore.Licensing.Core\Medicore.Licensing.Core.csproj" />
+    <ProjectReference Include="..\Medicore.Licensing.Mac\Medicore.Licensing.Mac.csproj" />
+    <ProjectReference Include="..\Medicore.Server.Core\Medicore.Server.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+</Project>

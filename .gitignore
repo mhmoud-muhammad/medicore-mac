@@ -1,0 +1,20 @@
+# مخرجات البناء
+bin/
+obj/
+.vs/
+*.user
+.build/
+.cache/
+dist/
+publish/
+.DS_Store
+
+# أسرار — لا تُرفع أبداً
+code.key
+private.key.xml
+*.p12
+*.pfx
+
+# مخرجات التجهيز
+app.mcb
+php/

@@ -1,0 +1,90 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Medicore.Mac.ServerWindow"
+        Title="Medicore Server"
+        Icon="/Assets/medicore.png"
+        Width="780" Height="680" MinWidth="640" MinHeight="540"
+        WindowStartupLocation="CenterScreen"
+        FlowDirection="RightToLeft">
+    <Window.Styles>
+        <!-- السجل يبقى داكناً عند المرور والتركيز (Fluent يغيّر الخلفية افتراضياً) -->
+        <Style Selector="TextBox#LogBox:pointerover /template/ Border#PART_BorderElement, TextBox#LogBox:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="#111827"/>
+        </Style>
+        <Style Selector="TextBox#LogBox:pointerover, TextBox#LogBox:focus">
+            <Setter Property="Foreground" Value="#D1D5DB"/>
+        </Style>
+    </Window.Styles>
+    <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*">
+
+        <!-- الترخيص -->
+        <Border Grid.Row="0" Background="#F0FDF4" BorderBrush="#22C55E" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock x:Name="LicenseeText" FontSize="16" FontWeight="Bold"/>
+                <SelectableTextBlock x:Name="LicenseDetailsText" Foreground="#166534" Margin="0,4,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <!-- الحالة -->
+        <Border Grid.Row="1" Background="#F3F4F6" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+            <Grid ColumnDefinitions="Auto,*">
+                <Ellipse x:Name="StatusDot" Width="14" Height="14" Fill="Gray" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <StackPanel Grid.Column="1">
+                    <TextBlock x:Name="StatusText" FontSize="15" FontWeight="SemiBold" Text="جاري التجهيز..."/>
+                    <SelectableTextBlock x:Name="StatusDetailText" TextWrapping="Wrap" Foreground="#4B5563" Margin="0,2,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- عناوين الاتصال -->
+        <Border Grid.Row="2" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="عناوين الاتصال (للتطبيق والأجهزة الأخرى على نفس الشبكة):" FontWeight="SemiBold"/>
+                <StackPanel x:Name="UrlsPanel" Margin="0,6,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- الأزرار -->
+        <WrapPanel Grid.Row="3" Margin="0,0,0,6">
+            <WrapPanel.Styles>
+                <Style Selector="WrapPanel > Button">
+                    <Setter Property="Margin" Value="0,0,8,8"/>
+                </Style>
+            </WrapPanel.Styles>
+            <Button x:Name="StartButton" Content="▶ تشغيل" Click="Start_Click" Classes="primary"/>
+            <Button x:Name="StopButton" Content="■ إيقاف" Click="Stop_Click"/>
+            <Button Content="🌐 فتح النظام" Click="OpenBrowser_Click"/>
+            <Button Content="🗄 استيراد قاعدة بيانات" Click="ImportDatabase_Click"/>
+            <Button x:Name="NewDatabaseButton" Content="🆕 قاعدة بيانات جديدة" Click="NewDatabase_Click" IsVisible="False"/>
+            <Button Content="📁 مجلد البيانات" Click="OpenDataFolder_Click"/>
+            <Button Content="📄 سجل أخطاء PHP" Click="OpenErrorLog_Click"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8" Spacing="6">
+                <TextBlock Text="المنفذ:" VerticalAlignment="Center"/>
+                <TextBox x:Name="PortBox" Width="72" VerticalContentAlignment="Center" FlowDirection="LeftToRight"/>
+                <Button Content="حفظ" Click="SavePort_Click"/>
+            </StackPanel>
+        </WrapPanel>
+
+        <StackPanel Grid.Row="4" Margin="0,0,0,10" Spacing="6">
+            <WrapPanel>
+                <CheckBox x:Name="StartupCheck" Content="تشغيل تلقائي عند تسجيل الدخول للماك (في الخلفية)" Margin="0,0,20,0"
+                          IsCheckedChanged="StartupCheck_Changed"/>
+                <CheckBox x:Name="TrayCheck" Content="الإغلاق يُبقي النظام يعمل في الخلفية" Margin="0,0,20,0"
+                          IsCheckedChanged="TrayCheck_Changed"/>
+                <CheckBox x:Name="SleepCheck" Content="منع الجهاز من النوم أثناء عمل السيرفر" Margin="0,0,20,0"
+                          IsCheckedChanged="SleepCheck_Changed"/>
+            </WrapPanel>
+            <Button Content="📌 اختصار Medicore على سطح المكتب" Click="Shortcuts_Click" Padding="10,4"/>
+            <Border x:Name="WarningBorder" Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="1"
+                    CornerRadius="8" Padding="10" IsVisible="False">
+                <TextBlock x:Name="WarningText" TextWrapping="Wrap"/>
+            </Border>
+        </StackPanel>
+
+        <!-- السجل -->
+        <TextBox Grid.Row="5" x:Name="LogBox" IsReadOnly="True" FontFamily="Menlo, Monaco, monospace" FontSize="11"
+                 AcceptsReturn="True" TextWrapping="Wrap" FlowDirection="LeftToRight"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 Background="#111827" Foreground="#D1D5DB"/>
+    </Grid>
+</Window>
