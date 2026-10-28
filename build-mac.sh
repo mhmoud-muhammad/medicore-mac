@@ -31,6 +31,8 @@ SIGN_ID=""
 NOTARY_PROFILE=""
 MAKE_DMG=1
 NO_SYSTEM=0
+# أقدم macOS مدعوم: .NET 8 يعمل على 10.15 (Catalina) فأحدث — .NET 9/10 يحتاجان macOS 12
+MIN_MACOS="10.15"
 
 usage() {
     sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
@@ -191,7 +193,7 @@ for ARCH in $ARCHS; do
     <key>CFBundleDevelopmentRegion</key>
     <string>ar</string>
     <key>LSMinimumSystemVersion</key>
-    <string>12.0</string>
+    <string>${MIN_MACOS}</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.business</string>
     <key>NSHighResolutionCapable</key>
@@ -208,6 +210,25 @@ for ARCH in $ARCHS; do
 </dict>
 </plist>
 EOF
+
+    step "4ب) فحص أقدم macOS مدعوم ($MIN_MACOS) — $LABEL"
+    if command -v otool >/dev/null; then
+        too_new=""
+        while IFS= read -r -d '' f; do
+            file -b "$f" | grep -q "Mach-O" || continue
+            # minos (LC_BUILD_VERSION) أو version (LC_VERSION_MIN_MACOSX) لمعمارية هذا الإصدار
+            v="$(otool -arch "$([[ $ARCH == x64 ]] && echo x86_64 || echo arm64)" -l "$f" 2>/dev/null \
+                | awk '/LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX/{f=1} f&&($1=="minos"||$1=="version"){print $2; exit}')"
+            [[ -z "$v" ]] && continue
+            if [[ "$(printf '%s\n%s\n' "$v" "$MIN_MACOS" | sort -V | tail -1)" != "$MIN_MACOS" ]]; then
+                too_new+="  ${f#"$APP/"} يحتاج macOS $v"$'\n'
+            fi
+        done < <(find "$APP/Contents" -type f -print0)
+        [[ -z "$too_new" ]] || die "ملفات لا تعمل على macOS $MIN_MACOS:"$'\n'"$too_new"
+        echo "✅ كل الملفات تعمل على macOS $MIN_MACOS أو أحدث."
+    else
+        echo "⚠️ otool غير موجود (xcode-select --install) — تخطي الفحص."
+    fi
 
     step "5) التوقيع — $LABEL"
     xattr -cr "$APP"
