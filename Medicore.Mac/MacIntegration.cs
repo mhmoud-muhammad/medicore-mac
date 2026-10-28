@@ -88,6 +88,32 @@ internal static class MacIntegration
 
         """;
 
+    /// <summary>هل بدأ البرنامج خلال الدقائق الأولى بعد تشغيل الجهاز؟ (تشغيل تلقائي، لا فتح يدوي)</summary>
+    public static bool StartedSoonAfterBoot(TimeSpan? window = null)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("/usr/sbin/sysctl") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true };
+            foreach (var a in new[] { "-n", "kern.boottime" }) psi.ArgumentList.Add(a);
+            using var p = Process.Start(psi)!;
+            var output = p.StandardOutput.ReadToEnd();
+            p.WaitForExit(5000);
+            var boot = ParseBootTime(output);
+            return boot is not null && DateTimeOffset.UtcNow - boot.Value < (window ?? TimeSpan.FromMinutes(5));
+        }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
+        {
+            return false; // ليس ماك
+        }
+    }
+
+    /// <summary>من مخرجات sysctl -n kern.boottime: "{ sec = 1761630000, usec = 123456 } Tue Oct 28 08:00:00 2026"</summary>
+    public static DateTimeOffset? ParseBootTime(string output)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(output, @"sec\s*=\s*(\d+)");
+        return m.Success && long.TryParse(m.Groups[1].Value, out var sec) ? DateTimeOffset.FromUnixTimeSeconds(sec) : null;
+    }
+
     // ══════════════ اختصار سطح المكتب ══════════════
 
     /// <summary>

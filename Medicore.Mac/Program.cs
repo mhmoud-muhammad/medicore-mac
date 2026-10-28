@@ -18,7 +18,10 @@ internal static class Program
     public static int Main(string[] args)
     {
         OpenBrowser = args.Contains(OpenArg, StringComparer.OrdinalIgnoreCase);
-        StartHidden = OpenBrowser || args.Contains(BackgroundArg, StringComparer.OrdinalIgnoreCase);
+        // macOS نفسه يفتح البرنامج بدون --background عند تسجيل الدخول إن أُضيف لـ Login Items يدوياً أو بخيار
+        // "إعادة فتح النوافذ" عند إيقاف التشغيل — في أول دقائق بعد تشغيل الجهاز نبدأ مخفياً في الحالتين
+        StartHidden = OpenBrowser || args.Contains(BackgroundArg, StringComparer.OrdinalIgnoreCase)
+                      || MacIntegration.StartedSoonAfterBoot();
 
         // نسخة واحدة فقط من السيرفر على الجهاز؛ فتح البرنامج مرة أخرى يُظهر النسخة العاملة أو يفتح النظام في المتصفح
         Instance = SingleInstance.TryAcquire();
