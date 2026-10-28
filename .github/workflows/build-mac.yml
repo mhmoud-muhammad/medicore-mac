@@ -25,7 +25,7 @@ jobs:
   build:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: هل كود النظام متاح؟
         id: secrets
@@ -38,14 +38,14 @@ jobs:
 
       - name: نظام PHP من medicore-C-
         if: steps.secrets.outputs.with_system == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: mhmoud-muhammad/medicore-C-
           token: ${{ secrets.MEDICORE_C_TOKEN }}
           path: _web
           sparse-checkout: Medicore.Web
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
 
@@ -69,7 +69,7 @@ jobs:
           MEDICORE_PHP_DIR: ${{ steps.secrets.outputs.with_system == 'true' && '_web/Medicore.Web' || '' }}
         run: dotnet run --project Medicore.Mac.Tests -c Release
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: MedicoreServer-mac
           path: dist/*.dmg

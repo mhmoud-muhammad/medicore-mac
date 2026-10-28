@@ -211,10 +211,10 @@ EOF
 
     step "5) التوقيع — $LABEL"
     xattr -cr "$APP"
-    # كل ملف تنفيذي/مكتبة أولاً، ثم الحزمة كاملة
+    # كل ملف في Contents/MacOS (macOS يعامل ملفات .dll هناك ككود يجب توقيعه) و PHP، ثم الحزمة كاملة
     while IFS= read -r -d '' f; do
-        if file -b "$f" | grep -q "Mach-O"; then sign_file "$f"; fi
-    done < <(find "$APP/Contents" -type f \( -name "*.dylib" -o -perm -u+x \) -print0)
+        sign_file "$f"
+    done < <(find "$APP/Contents/MacOS" "$APP/Contents/Resources/php" -type f -print0)
     sign_file "$APP"
     codesign --verify --deep --strict "$APP"
     echo "✅ التوقيع سليم ($( [[ -n "$SIGN_ID" ]] && echo "$SIGN_ID" || echo "ad-hoc محلي"))"
