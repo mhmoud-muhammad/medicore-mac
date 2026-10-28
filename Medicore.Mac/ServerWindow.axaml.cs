@@ -90,6 +90,15 @@ public partial class ServerWindow : Window
     public async Task InitializeServerAsync()
     {
         UpdateState(ServerState.Starting);
+        if (_paths.FindBundle() is null)
+        {
+            // نسخة تثبيت بدون كود النظام بداخلها: يختار المستخدم app.mcb (نفس ملف التحديث المستخدم مع ويندوز)
+            ShowFatal("ملف النظام (app.mcb) غير موجود بعد. اضغط \"📦 اختيار ملف النظام\" واختر ملف app.mcb — " +
+                      "نفس ملف التحديث الذي ترفعه على أجهزة ويندوز (مشفّر بنفس code.key الذي أصدرت به الترخيص).");
+            SelectBundleButton.IsVisible = true;
+            return;
+        }
+        SelectBundleButton.IsVisible = false;
         try
         {
             // PHP بقي يعمل من تشغيل سابق انتهى قسرياً يحجز المنفذ
@@ -446,6 +455,35 @@ public partial class ServerWindow : Window
         // بدأ مخفياً (مع تسجيل الدخول أو من اختصار النظام): نُظهر النافذة ليرى سبب الفشل
         _openBrowserPending = false;
         ShowFromTray();
+    }
+
+    private async void SelectBundle_Click(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "اختر ملف النظام (app.mcb)",
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("ملف النظام (*.mcb)") { Patterns = new[] { "*.mcb" } },
+                FilePickerFileTypes.All,
+            },
+        });
+        var path = files.FirstOrDefault()?.TryGetLocalPath();
+        if (path is null) return;
+        try
+        {
+            var bytes = await Task.Run(() => File.ReadAllBytes(path));
+            await Task.Run(() => LicensedLauncher.ValidateBundle(_license, bytes));
+            // يُحفظ كنسخة النظام في مجلد البيانات (نفس مكان التحديث عن بُعد) — يبقى عند تحديث البرنامج
+            await Task.Run(() => _updater.Commit(bytes, null, rollback: false));
+            AppendLog($"✅ تم اعتماد ملف النظام ({bytes.Length / 1024.0 / 1024.0:0.00} MB).");
+            await InitializeServerAsync();
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.Error(this, "تعذّر اعتماد الملف: " + ex.Message);
+        }
     }
 
     private async void Start_Click(object? sender, RoutedEventArgs e) => await StartServerAsync();

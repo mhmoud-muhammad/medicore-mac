@@ -30,6 +30,7 @@ PHP_X64=""
 SIGN_ID=""
 NOTARY_PROFILE=""
 MAKE_DMG=1
+NO_SYSTEM=0
 
 usage() {
     sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
@@ -46,6 +47,7 @@ usage() {
   --sign IDENTITY        توقيع بشهادة Developer ID (بدونه: توقيع محلي ad-hoc)
   --notarize PROFILE     توثيق Apple (xcrun notarytool store-credentials PROFILE) — يحتاج --sign
   --no-dmg               البرنامج (.app) فقط بدون DMG
+  --without-system       بدون app.mcb داخل البرنامج (بلا code.key): يختار العميل ملف app.mcb عند أول تشغيل
 EOF
     exit "${1:-0}"
 }
@@ -66,6 +68,7 @@ while [[ $# -gt 0 ]]; do
         --sign) SIGN_ID="$2"; shift 2 ;;
         --notarize) NOTARY_PROFILE="$2"; shift 2 ;;
         --no-dmg) MAKE_DMG=0; shift ;;
+        --without-system) NO_SYSTEM=1; shift ;;
         -h|--help) usage 0 ;;
         *) echo "خيار غير معروف: $1"; usage 2 ;;
     esac
@@ -84,7 +87,10 @@ mkdir -p "$DIST" "$WORK" "$CACHE"
 # ── 1) كود النظام المشفّر app.mcb ──────────────────────────────────────────
 step "1) كود النظام المشفّر (app.mcb)"
 MCB="$WORK/app.mcb"
-if [[ -n "$BUNDLE" ]]; then
+rm -f "$MCB"
+if [[ "$NO_SYSTEM" == "1" ]]; then
+    echo "بدون app.mcb — البرنامج يطلب ملف النظام عند أول تشغيل."
+elif [[ -n "$BUNDLE" ]]; then
     [[ -f "$BUNDLE" ]] || die "لا يوجد $BUNDLE"
     cp "$BUNDLE" "$MCB"
     echo "استخدام الحزمة الجاهزة: $BUNDLE"
@@ -159,7 +165,7 @@ for ARCH in $ARCHS; do
     fi
 
     step "4) تجميع Medicore Server.app — $LABEL"
-    cp "$MCB" "$APP/Contents/Resources/app.mcb"
+    [[ -f "$MCB" ]] && cp "$MCB" "$APP/Contents/Resources/app.mcb"
     cp "$ROOT/macos/medicore.icns" "$APP/Contents/Resources/medicore.icns"
     cat > "$APP/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

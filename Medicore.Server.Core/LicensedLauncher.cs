@@ -31,6 +31,16 @@ public static class LicensedLauncher
         return RuntimeWorkspace.Create(paths.RuntimeRoot, zip, paths);
     }
 
+    /// <summary>
+    /// يتحقق أن ملف app.mcb يُفك بترخيص هذا الجهاز وأنه نظام Medicore — قبل اعتماده كنسخة النظام
+    /// (نسخة تثبيت بدون app.mcb داخلها: يختار المستخدم الملف عند أول تشغيل).
+    /// </summary>
+    public static void ValidateBundle(LicensePayload license, byte[] bundle)
+    {
+        if (!CodeBundle.LooksLikeMedicore(DecryptBundle(license, bundle)))
+            throw new InvalidDataException("الملف لا يحتوي نظام Medicore (لا يوجد index.php و api).");
+    }
+
     private static byte[] DecryptBundle(LicensePayload license, byte[] bundle)
     {
         var key = CodeKeyProtector.Unwrap(license);

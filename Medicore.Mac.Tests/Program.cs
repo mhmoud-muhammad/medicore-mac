@@ -414,6 +414,30 @@ else
     Console.WriteLine("  (تخطي: لا يوجد php)");
 }
 
+
+// --- نسخة الماك: نسخة تثبيت بدون app.mcb (يختار العميل ملف النظام عند أول تشغيل) ---
+Console.WriteLine("\nسيناريو ماك 4: اختيار ملف النظام app.mcb عند أول تشغيل");
+{
+    var tmp4 = Directory.CreateTempSubdirectory("mc-pick").FullName;
+    var paths4 = new HostPaths(Path.Combine(tmp4, "app") + Path.DirectorySeparatorChar, Path.Combine(tmp4, "data"), Path.Combine(tmp4, "rt"));
+    Directory.CreateDirectory(paths4.AppDir);
+    Check("بدون app.mcb داخل البرنامج: لا توجد نسخة نظام", paths4.FindBundle() is null);
+    var src4 = Path.Combine(tmp4, "web");
+    Directory.CreateDirectory(Path.Combine(src4, "api"));
+    File.WriteAllText(Path.Combine(src4, "index.php"), "<?php");
+    File.WriteAllText(Path.Combine(src4, "api", "x.php"), "<?php");
+    var good = CodeBundle.Encrypt(CodeBundle.Zip(src4), codeKey);
+    Check("ملف مشفّر بمفتاح آخر يُرفض", Throws(() => LicensedLauncher.ValidateBundle(rMac.Payload!, CodeBundle.Encrypt(CodeBundle.Zip(src4), CodeKeyProtector.GenerateKey()))));
+    File.Delete(Path.Combine(src4, "index.php"));
+    Check("ملف ليس نظام Medicore يُرفض", Throws(() => LicensedLauncher.ValidateBundle(rMac.Payload!, CodeBundle.Encrypt(CodeBundle.Zip(src4), codeKey))));
+    LicensedLauncher.ValidateBundle(rMac.Payload!, good);
+    new CodeUpdater(paths4).Commit(good, null, rollback: false);
+    Check("بعد اختياره: يُستخدم من مجلد البيانات (ويبقى عند تحديث البرنامج)", paths4.FindBundle() is { } f4 && File.ReadAllBytes(f4).SequenceEqual(good));
+    File.WriteAllBytes(Path.Combine(paths4.AppDir, "app.mcb"), new byte[] { 9 });
+    Check("نسخة تثبيت لاحقة فيها app.mcb تتقدّم عليه", paths4.FindBundle() == paths4.FindInstalledBundle());
+    Directory.Delete(tmp4, true);
+}
+
 Console.WriteLine($"\n=== النتيجة: {passed} نجح، {failed} فشل ===");
 return failed == 0 ? 0 : 1;
 

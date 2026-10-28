@@ -51,6 +51,8 @@
                     <Setter Property="Margin" Value="0,0,8,8"/>
                 </Style>
             </WrapPanel.Styles>
+            <Button x:Name="SelectBundleButton" Content="📦 اختيار ملف النظام (app.mcb)" Click="SelectBundle_Click"
+                    Classes="primary" IsVisible="False"/>
             <Button x:Name="StartButton" Content="▶ تشغيل" Click="Start_Click" Classes="primary"/>
             <Button x:Name="StopButton" Content="■ إيقاف" Click="Stop_Click"/>
             <Button Content="🌐 فتح النظام" Click="OpenBrowser_Click"/>

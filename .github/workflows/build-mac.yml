@@ -1,8 +1,11 @@
 # بناء ملفات التثبيت DMG للماك تلقائياً على أجهزة ماك من GitHub (بدون جهاز تطوير عندك).
 #
-# مرة واحدة — Settings ← Secrets and variables ← Actions ← New repository secret:
+# بدون أي إعداد: يُبنى البرنامج بدون كود النظام، ويختار العميل ملف app.mcb عند أول تشغيل
+# (نفس ملف التحديث المستخدم مع ويندوز).
+#
+# اختياري — لتضمين كود النظام داخل البرنامج (Settings ← Secrets and variables ← Actions):
 #   MEDICORE_CODE_KEY   محتوى ملف code.key (نفس المفتاح المحمَّل في أداة التراخيص)
-#   MEDICORE_C_TOKEN    Personal Access Token (صلاحية قراءة Contents لمستودع medicore-C-) — لقراءة نظام PHP منه
+#   MEDICORE_C_TOKEN    Personal Access Token (قراءة Contents لمستودع medicore-C-) — لقراءة نظام PHP منه
 #
 # التشغيل: Actions ← "بناء نسخة الماك" ← Run workflow (أدخل رقم الإصدار)، أو ارفع وسماً v1.2.0.
 # الناتج: Artifacts في صفحة التشغيل (MedicoreServer-<الإصدار>-AppleSilicon.dmg و -Intel.dmg).
@@ -24,7 +27,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: هل كود النظام متاح؟
+        id: secrets
+        env:
+          CODE_KEY: ${{ secrets.MEDICORE_CODE_KEY }}
+          C_TOKEN: ${{ secrets.MEDICORE_C_TOKEN }}
+        run: |
+          if [ -n "$CODE_KEY" ] && [ -n "$C_TOKEN" ]; then echo "with_system=true" >> "$GITHUB_OUTPUT";
+          else echo "with_system=false" >> "$GITHUB_OUTPUT"; echo "::notice::بدون MEDICORE_CODE_KEY/MEDICORE_C_TOKEN — نسخة بدون كود النظام (يُختار app.mcb عند أول تشغيل)."; fi
+
       - name: نظام PHP من medicore-C-
+        if: steps.secrets.outputs.with_system == 'true'
         uses: actions/checkout@v4
         with:
           repository: mhmoud-muhammad/medicore-C-
@@ -36,24 +49,24 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: مفتاح الكود
-        env:
-          CODE_KEY: ${{ secrets.MEDICORE_CODE_KEY }}
-        run: |
-          if [ -z "$CODE_KEY" ]; then echo "::error::أضف السر MEDICORE_CODE_KEY (محتوى code.key)"; exit 1; fi
-          printf '%s' "$CODE_KEY" > "$RUNNER_TEMP/code.key"
-
       - name: البناء
         env:
           VERSION_INPUT: ${{ github.event.inputs.version }}
+          CODE_KEY: ${{ secrets.MEDICORE_CODE_KEY }}
+          WITH_SYSTEM: ${{ steps.secrets.outputs.with_system }}
         run: |
           VERSION="${VERSION_INPUT:-${GITHUB_REF_NAME#v}}"
-          ./build-mac.sh --version "$VERSION" --web _web/Medicore.Web --code-key "$RUNNER_TEMP/code.key"
-          rm -f "$RUNNER_TEMP/code.key"
+          if [ "$WITH_SYSTEM" = "true" ]; then
+            printf '%s' "$CODE_KEY" > "$RUNNER_TEMP/code.key"
+            ./build-mac.sh --version "$VERSION" --web _web/Medicore.Web --code-key "$RUNNER_TEMP/code.key"
+            rm -f "$RUNNER_TEMP/code.key"
+          else
+            ./build-mac.sh --version "$VERSION" --without-system
+          fi
 
       - name: الاختبارات
         env:
-          MEDICORE_PHP_DIR: _web/Medicore.Web
+          MEDICORE_PHP_DIR: ${{ steps.secrets.outputs.with_system == 'true' && '_web/Medicore.Web' || '' }}
         run: dotnet run --project Medicore.Mac.Tests -c Release
 
       - uses: actions/upload-artifact@v4
