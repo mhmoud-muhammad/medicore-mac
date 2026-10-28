@@ -24,15 +24,17 @@ ARCHS="arm64 x64"
 WEB_DIR="../medicore-C-/Medicore.Web"
 BUNDLE=""
 CODE_KEY="${MEDICORE_CODE_KEY:-}"
-PHP_VERSION="8.3"
+PHP_VERSION="8.3 8.2 8.1"
 PHP_ARM64=""
 PHP_X64=""
 SIGN_ID=""
 NOTARY_PROFILE=""
 MAKE_DMG=1
 NO_SYSTEM=0
-# أقدم macOS مدعوم: .NET 8 يعمل على 10.15 (Catalina) فأحدث — .NET 9/10 يحتاجان macOS 12
-MIN_MACOS="10.15"
+# أقدم macOS مدعوم: .NET 8 يعمل على 10.15 (Catalina) فأحدث على Intel — .NET 9/10 يحتاجان macOS 12.
+# أجهزة Apple Silicon كلها بدأت بـ macOS 11.
+MIN_MACOS_X64="10.15"
+MIN_MACOS_ARM64="11.0"
 
 usage() {
     sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
@@ -43,7 +45,7 @@ usage() {
   --web DIR              مجلد نظام PHP (الافتراضي ../medicore-C-/Medicore.Web)
   --bundle FILE          app.mcb جاهز بدل تشفير مجلد PHP
   --code-key FILE        مفتاح الكود (الافتراضي: MEDICORE_CODE_KEY أو code.key هنا أو في ../medicore-C-)
-  --php-version 8.3      إصدار PHP المحمول (static-php-cli)
+  --php-version "8.3 8.2" إصدارات PHP المحمول المقبولة بالترتيب (الافتراضي 8.3 8.2 8.1)
   --php-arm64 FILE       ملف php جاهز (بدل التنزيل) لـ Apple Silicon
   --php-x64 FILE         ملف php جاهز (بدل التنزيل) لـ Intel
   --sign IDENTITY        توقيع بشهادة Developer ID (بدونه: توقيع محلي ad-hoc)
@@ -107,24 +109,49 @@ else
     dotnet run --project "$ROOT/Medicore.Packager" -c Release -- pack "$WEB_DIR" "$MCB" "$CODE_KEY"
 fi
 
+# أقدم macOS يحتاجه ملف Mach-O لمعمارية معيّنة (minos أو version). فارغ إن تعذّر الفحص.
+macho_minos() {
+    local f="$1" arch="$2"
+    command -v otool >/dev/null || return 0
+    otool -arch "$arch" -l "$f" 2>/dev/null \
+        | awk '/LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX/{f=1} f&&($1=="minos"||$1=="version"){print $2; exit}'
+}
+
+# هل الإصدار $1 أقدم من أو يساوي $2؟
+version_le() { [[ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" == "$2" ]]; }
+
 # ── PHP المحمول للماك (static-php-cli: ملف واحد، كل الإضافات مدمجة، لا يحتاج Homebrew) ──
+# يختار أحدث PHP (8.3 ثم 8.2 ثم 8.1) يعمل على أقدم macOS مدعوم لهذه المعمارية: إصدارات PHP المحمول
+# الحديثة مبنية لـ macOS 12، والأجهزة القديمة (مثل MacBook Air 2013 على Big Sur 11) تحتاج بناءً أقدم.
 fetch_php() {
-    local arch="$1" dest="$2" listing file
+    local arch="$1" dest="$2" min="$4" listing file candidates tried=0
     local base="https://dl.static-php.dev/static-php-cli/common"
     listing="$(curl -fsSL "$base/")" || die "تعذّر الاتصال بـ dl.static-php.dev — نزّل php يدوياً ومرّره بـ --php-$3"
-    file="$(grep -oE "php-${PHP_VERSION//./\\.}\.[0-9]+-cli-macos-${arch}\.tar\.gz" <<<"$listing" | sort -uV | tail -1 || true)"
-    [[ -n "$file" ]] || die "لم يُعثر على PHP ${PHP_VERSION} للماك (${arch}) في $base"
-    if [[ ! -f "$CACHE/$file" ]]; then
-        echo "تنزيل $file ..."
-        curl -fL --progress-bar -o "$CACHE/$file.part" "$base/$file"
-        mv "$CACHE/$file.part" "$CACHE/$file"
-    fi
-    local tmp; tmp="$(mktemp -d)"
-    tar -xzf "$CACHE/$file" -C "$tmp"
-    [[ -f "$tmp/php" ]] || die "الأرشيف $file لا يحتوي php"
-    cp "$tmp/php" "$dest"
-    rm -rf "$tmp"
-    echo "PHP: $file"
+    candidates="$(for v in $PHP_VERSION; do
+        grep -oE "php-${v//./\\.}\.[0-9]+-cli-macos-${arch}\.tar\.gz" <<<"$listing" | sort -uV -r
+    done | awk '!seen[$0]++')"
+    [[ -n "$candidates" ]] || die "لم يُعثر على PHP ${PHP_VERSION} للماك (${arch}) في $base"
+    for file in $candidates; do
+        (( tried++ < 25 )) || break
+        if [[ ! -f "$CACHE/$file" ]]; then
+            curl -fsSL -o "$CACHE/$file.part" "$base/$file" || { echo "  تعذّر تنزيل $file"; continue; }
+            mv "$CACHE/$file.part" "$CACHE/$file"
+        fi
+        local tmp; tmp="$(mktemp -d)"
+        tar -xzf "$CACHE/$file" -C "$tmp" 2>/dev/null
+        if [[ ! -f "$tmp/php" ]]; then rm -rf "$tmp"; continue; fi
+        local need; need="$(macho_minos "$tmp/php" "$([[ $arch == aarch64 ]] && echo arm64 || echo x86_64)")"
+        if [[ -z "$need" ]] || version_le "$need" "$min"; then
+            cp "$tmp/php" "$dest"
+            rm -rf "$tmp"
+            echo "PHP: $file (يحتاج macOS ${need:-؟})"
+            return 0
+        fi
+        echo "  $file يحتاج macOS $need — أحدث من $min، تجربة إصدار أقدم..."
+        rm -f "$CACHE/$file"
+        rm -rf "$tmp"
+    done
+    die "لا يوجد PHP محمول (${PHP_VERSION}) يعمل على macOS $min لـ ${arch} — مرّر ملف php مبنياً لـ macOS $min بـ --php-$3"
 }
 
 sign_file() {
@@ -137,8 +164,8 @@ sign_file() {
 }
 
 for ARCH in $ARCHS; do
-    if [[ "$ARCH" == "arm64" ]]; then LABEL="AppleSilicon"; PHP_ARCH="aarch64"; PHP_LOCAL="$PHP_ARM64"
-    else LABEL="Intel"; PHP_ARCH="x86_64"; PHP_LOCAL="$PHP_X64"; fi
+    if [[ "$ARCH" == "arm64" ]]; then LABEL="AppleSilicon"; PHP_ARCH="aarch64"; MACHO_ARCH="arm64"; PHP_LOCAL="$PHP_ARM64"; MIN_MACOS="$MIN_MACOS_ARM64"
+    else LABEL="Intel"; PHP_ARCH="x86_64"; MACHO_ARCH="x86_64"; PHP_LOCAL="$PHP_X64"; MIN_MACOS="$MIN_MACOS_X64"; fi
 
     APP="$WORK/$ARCH/Medicore Server.app"
     step "2) بناء البرنامج — $LABEL ($ARCH)"
@@ -153,7 +180,7 @@ for ARCH in $ARCHS; do
         [[ -f "$PHP_LOCAL" ]] || die "لا يوجد $PHP_LOCAL"
         cp "$PHP_LOCAL" "$APP/Contents/Resources/php/php"
     else
-        fetch_php "$PHP_ARCH" "$APP/Contents/Resources/php/php" "$ARCH"
+        fetch_php "$PHP_ARCH" "$APP/Contents/Resources/php/php" "$ARCH" "$MIN_MACOS"
     fi
     chmod +x "$APP/Contents/Resources/php/php"
     # فحص الإضافات المطلوبة (إن أمكن تشغيل هذه المعمارية على جهازك)
@@ -216,13 +243,8 @@ EOF
         too_new=""
         while IFS= read -r -d '' f; do
             file -b "$f" | grep -q "Mach-O" || continue
-            # minos (LC_BUILD_VERSION) أو version (LC_VERSION_MIN_MACOSX) لمعمارية هذا الإصدار
-            v="$(otool -arch "$([[ $ARCH == x64 ]] && echo x86_64 || echo arm64)" -l "$f" 2>/dev/null \
-                | awk '/LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX/{f=1} f&&($1=="minos"||$1=="version"){print $2; exit}')"
-            [[ -z "$v" ]] && continue
-            if [[ "$(printf '%s\n%s\n' "$v" "$MIN_MACOS" | sort -V | tail -1)" != "$MIN_MACOS" ]]; then
-                too_new+="  ${f#"$APP/"} يحتاج macOS $v"$'\n'
-            fi
+            v="$(macho_minos "$f" "$MACHO_ARCH")"
+            [[ -z "$v" ]] || version_le "$v" "$MIN_MACOS" || too_new+="  ${f#"$APP/"} يحتاج macOS $v"$'\n'
         done < <(find "$APP/Contents" -type f -print0)
         [[ -z "$too_new" ]] || die "ملفات لا تعمل على macOS $MIN_MACOS:"$'\n'"$too_new"
         echo "✅ كل الملفات تعمل على macOS $MIN_MACOS أو أحدث."
