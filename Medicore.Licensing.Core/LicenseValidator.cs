@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -65,6 +66,14 @@ public sealed class LicenseValidator
         return ValidateEnvelope(envelope, currentHardwareId, nowUtc);
     }
 
+    /// <summary>
+    /// البصمة كما تُقارن: حروف وأرقام وشرطات فقط، بأحرف كبيرة. نسخ البصمة عبر واتساب أو لصقها في حقل عربي
+    /// يضيف أحرف اتجاه غير مرئية (U+200E/U+200F) ومسافات — تبدو مطابقة تماماً لكنها كانت تُرفض كـ"جهاز آخر".
+    /// </summary>
+    public static string NormalizeHardwareId(string hardwareId) =>
+        new string(hardwareId.Where(c => c is (>= '0' and <= '9') or (>= 'A' and <= 'Z') or (>= 'a' and <= 'z') or '-').ToArray())
+            .ToUpperInvariant();
+
     private LicenseValidationResult ValidateEnvelope(LicenseFileEnvelope envelope, string currentHardwareId, DateTime? nowUtc)
     {
         byte[] payloadBytes, signatureBytes;
@@ -109,7 +118,7 @@ public sealed class LicenseValidator
         }
 
         // 2) مطابقة بصمة الجهاز — تمنع نسخ نفس ملف الترخيص لجهاز آخر
-        if (!string.Equals(payload.HardwareId, currentHardwareId, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(NormalizeHardwareId(payload.HardwareId), NormalizeHardwareId(currentHardwareId), StringComparison.Ordinal))
         {
             return LicenseValidationResult.Fail(
                 LicenseStatus.HardwareMismatch,

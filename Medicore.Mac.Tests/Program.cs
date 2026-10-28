@@ -46,6 +46,14 @@ var r2 = validator.ValidateJson(goodEnvelope.ToJson(), OtherHardwareId);
 Check("مرفوض", !r2.IsValid);
 Check("السبب: عدم تطابق الجهاز", r2.Status == LicenseStatus.HardwareMismatch);
 
+// --- سيناريو 2ب: بصمة نُسخت عبر واتساب/حقل عربي (أحرف اتجاه غير مرئية ومسافات) ---
+Console.WriteLine("\nسيناريو 2ب: بصمة بها أحرف غير مرئية من النسخ (U+200F) — نفس الجهاز");
+var rtlPayload = new LicensePayload { PharmacyName = "صيدلية", HardwareId = "\u200F " + RealHardwareId + "\u200E" };
+var rRtl = validator.ValidateJson(signer.Issue(rtlPayload).ToJson(), RealHardwareId);
+Check("مقبول (الأحرف غير المرئية لا تجعله \"جهازاً آخر\")", rRtl.IsValid);
+Check("لكن جهاز مختلف فعلاً ما زال مرفوضاً", !validator.ValidateJson(signer.Issue(rtlPayload).ToJson(), OtherHardwareId).IsValid);
+Check("تنظيف البصمة: حروف وأرقام وشرطات فقط بأحرف كبيرة", LicenseValidator.NormalizeHardwareId("\u200F 49f1-a684-c037-6621\u200E") == "49F1-A684-C037-6621");
+
 // --- سيناريو 3: تعديل البيانات بعد التوقيع (تزوير) ---
 // ملاحظة: البيانات مخزَّنة كـ Base64 بداخل الملف، فتعديل النص الخام مباشرة
 // (كما قد يحاول متطفل بسيط) لن يغيّر شيئاً فعلياً — لذلك نُحاكي هنا تزويراً
