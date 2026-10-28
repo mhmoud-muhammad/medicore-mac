@@ -105,7 +105,7 @@ else
         done
     fi
     [[ -n "$CODE_KEY" && -f "$CODE_KEY" ]] || die "لا يوجد code.key — ضعه في جذر هذا المستودع أو مرّر --code-key (أو --bundle app.mcb جاهز)."
-    [[ -f "$WEB_DIR/index.php" ]] || die "لا يوجد نظام PHP في $WEB_DIR — انسخ مستودع medicore-C- بجانب هذا المستودع أو مرّر --web."
+    [[ -f "$WEB_DIR/index.php" ]] || die "لا يوجد نظام PHP في ${WEB_DIR} — انسخ مستودع medicore-C- بجانب هذا المستودع أو مرّر --web."
     dotnet run --project "$ROOT/Medicore.Packager" -c Release -- pack "$WEB_DIR" "$MCB" "$CODE_KEY"
 fi
 
@@ -147,11 +147,11 @@ fetch_php() {
             echo "PHP: $file (يحتاج macOS ${need:-؟})"
             return 0
         fi
-        echo "  $file يحتاج macOS $need — أحدث من $min، تجربة إصدار أقدم..."
+        echo "  ${file} يحتاج macOS ${need} — أحدث من ${min}، تجربة إصدار أقدم..."
         rm -f "$CACHE/$file"
         rm -rf "$tmp"
     done
-    die "لا يوجد PHP محمول (${PHP_VERSION}) يعمل على macOS $min لـ ${arch} — مرّر ملف php مبنياً لـ macOS $min بـ --php-$3"
+    die "لا يوجد PHP محمول (${PHP_VERSION}) يعمل على macOS ${min} لـ ${arch} — مرّر ملف php مبنياً لـ macOS ${min} بـ --php-$3"
 }
 
 sign_file() {
@@ -247,7 +247,7 @@ EOF
             [[ -z "$v" ]] || version_le "$v" "$MIN_MACOS" || too_new+="  ${f#"$APP/"} يحتاج macOS $v"$'\n'
         done < <(find "$APP/Contents" -type f -print0)
         [[ -z "$too_new" ]] || die "ملفات لا تعمل على macOS $MIN_MACOS:"$'\n'"$too_new"
-        echo "✅ كل الملفات تعمل على macOS $MIN_MACOS أو أحدث."
+        echo "✅ كل الملفات تعمل على macOS ${MIN_MACOS} أو أحدث."
     else
         echo "⚠️ otool غير موجود (xcode-select --install) — تخطي الفحص."
     fi
