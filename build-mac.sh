@@ -211,10 +211,11 @@ EOF
 
     step "5) التوقيع — $LABEL"
     xattr -cr "$APP"
-    # كل ملف في Contents/MacOS (macOS يعامل ملفات .dll هناك ككود يجب توقيعه) و PHP، ثم الحزمة كاملة
+    # كل ملف في Contents/MacOS (macOS يعامل ملفات .dll هناك ككود يجب توقيعه) و PHP، ثم الحزمة كاملة.
+    # الملف التنفيذي الرئيسي يُوقَّع آخراً مع الحزمة: توقيعه يتحقق من توقيع كل ما بجانبه.
     while IFS= read -r -d '' f; do
         sign_file "$f"
-    done < <(find "$APP/Contents/MacOS" "$APP/Contents/Resources/php" -type f -print0)
+    done < <(find "$APP/Contents/MacOS" "$APP/Contents/Resources/php" -type f ! -path "$APP/Contents/MacOS/MedicoreServer" -print0)
     sign_file "$APP"
     codesign --verify --deep --strict "$APP"
     echo "✅ التوقيع سليم ($( [[ -n "$SIGN_ID" ]] && echo "$SIGN_ID" || echo "ad-hoc محلي"))"
