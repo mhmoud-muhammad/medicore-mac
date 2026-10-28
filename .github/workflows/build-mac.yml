@@ -21,6 +21,9 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: macos-14
@@ -49,19 +52,38 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: PHP المحمول للأجهزة القديمة (من الإصدار php-runtime)
+        id: php
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/php"
+          args=""
+          for a in x86_64:x64 aarch64:arm64; do
+            src="${a%%:*}"; dst="${a##*:}"
+            if gh release download php-runtime -R "$GITHUB_REPOSITORY" -p "php-cli-macos-$src.tar.gz" -D "$RUNNER_TEMP/php" --clobber 2>/dev/null; then
+              mkdir -p "$RUNNER_TEMP/php/$dst" && tar -xzf "$RUNNER_TEMP/php/php-cli-macos-$src.tar.gz" -C "$RUNNER_TEMP/php/$dst"
+              args="$args --php-$dst $RUNNER_TEMP/php/$dst/php"
+            else
+              echo "::warning::لا يوجد php-cli-macos-$src في الإصدار php-runtime — شغّل \"بناء PHP للماك\" أولاً"
+            fi
+          done
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+
       - name: البناء
         env:
           VERSION_INPUT: ${{ github.event.inputs.version }}
           CODE_KEY: ${{ secrets.MEDICORE_CODE_KEY }}
           WITH_SYSTEM: ${{ steps.secrets.outputs.with_system }}
+          PHP_ARGS: ${{ steps.php.outputs.args }}
         run: |
           VERSION="${VERSION_INPUT:-${GITHUB_REF_NAME#v}}"
           if [ "$WITH_SYSTEM" = "true" ]; then
             printf '%s' "$CODE_KEY" > "$RUNNER_TEMP/code.key"
-            ./build-mac.sh --version "$VERSION" --web _web/Medicore.Web --code-key "$RUNNER_TEMP/code.key"
+            ./build-mac.sh --version "$VERSION" --web _web/Medicore.Web --code-key "$RUNNER_TEMP/code.key" $PHP_ARGS
             rm -f "$RUNNER_TEMP/code.key"
           else
-            ./build-mac.sh --version "$VERSION" --without-system
+            ./build-mac.sh --version "$VERSION" --without-system $PHP_ARGS
           fi
 
       - name: الاختبارات

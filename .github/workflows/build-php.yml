@@ -1,0 +1,92 @@
+# بناء PHP المحمول للماك يعمل على الأجهزة القديمة (مرة واحدة، أو عند الحاجة لإصدار PHP أحدث).
+#
+# إصدارات PHP الجاهزة على static-php.dev مبنية لـ macOS 12 فأحدث، فلا تعمل على أجهزة مثل MacBook Air 2013
+# (Big Sur 11). هنا نبنيها بنفس الأداة (static-php-cli) لـ macOS 10.15 (Intel) و 11.0 (Apple Silicon)
+# بالإضافات التي يستخدمها النظام فقط، وتُرفع كملفات في الإصدار "php-runtime" بهذا المستودع —
+# ومنه يأخذها "بناء نسخة الماك".
+#
+# التشغيل: Actions ← "بناء PHP للماك" ← Run workflow (يستغرق 20-40 دقيقة).
+name: بناء PHP للماك
+
+on:
+  workflow_dispatch:
+    inputs:
+      php:
+        description: إصدار PHP
+        default: "8.3"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  # الإضافات التي يحتاجها نظام Medicore (sqlite، الصور، الشبكة، النصوص العربية) + OPcache للسرعة
+  EXTENSIONS: ctype,curl,dom,exif,fileinfo,filter,gd,iconv,mbregex,mbstring,opcache,openssl,pdo,pdo_sqlite,phar,session,simplexml,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib
+  LIBS: libjpeg,freetype
+
+jobs:
+  php:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: macos-15-intel
+            min: "10.15"
+          - arch: aarch64
+            runner: macos-14
+            min: "11.0"
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: static-php-cli
+        run: |
+          curl -fsSL -o spc.tgz "https://github.com/crazywhalecc/static-php-cli/releases/latest/download/spc-macos-${{ matrix.arch }}.tar.gz"
+          tar -xzf spc.tgz
+          chmod +x spc
+          ./spc --version
+
+      - name: الأدوات اللازمة
+        run: ./spc doctor --auto-fix
+
+      - name: تنزيل المصادر
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PHP_VERSION: ${{ github.event.inputs.php }}
+        run: ./spc download --with-php="$PHP_VERSION" --for-extensions="$EXTENSIONS" --for-libs="$LIBS" --retry=3
+
+      - name: البناء لـ macOS ${{ matrix.min }}
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.min }}
+        run: ./spc build "$EXTENSIONS" --with-libs="$LIBS" --build-cli
+
+      - name: فحص
+        env:
+          MIN: ${{ matrix.min }}
+        run: |
+          PHP=buildroot/bin/php
+          "$PHP" -v
+          "$PHP" -m
+          need="$(otool -l "$PHP" | awk '/LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX/{f=1} f&&($1=="minos"||$1=="version"){print $2; exit}')"
+          echo "PHP يحتاج macOS $need"
+          [ "$(printf '%s\n%s\n' "$need" "$MIN" | sort -V | tail -1)" = "$MIN" ] || { echo "::error::PHP يحتاج macOS $need — أحدث من $MIN"; exit 1; }
+          # مكتبات النظام فقط (لا Homebrew)
+          if otool -L "$PHP" | tail -n +2 | grep -vE '^\s*/(usr/lib|System/Library)/'; then echo "::error::PHP مرتبط بمكتبات خارج النظام"; exit 1; fi
+          for m in pdo_sqlite sqlite3 mbstring openssl curl gd zip fileinfo exif "Zend OPcache"; do
+            "$PHP" -m | grep -qix "$m" || { echo "::error::الإضافة $m غير موجودة"; exit 1; }
+          done
+          "$PHP" -r 'var_dump(function_exists("imagecreatefromjpeg"), function_exists("imagettftext"));'
+
+      - name: رفع إلى الإصدار php-runtime
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARCH: ${{ matrix.arch }}
+          MIN: ${{ matrix.min }}
+        run: |
+          mkdir out && cp buildroot/bin/php out/php
+          FILE="php-cli-macos-$ARCH.tar.gz"
+          tar -czf "$FILE" -C out php
+          gh release view php-runtime -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create php-runtime -R "$GITHUB_REPOSITORY" --title "PHP المحمول للماك" \
+              --notes "PHP مبني لأجهزة الماك القديمة: Intel = macOS 10.15+، Apple Silicon = macOS 11+. يُستخدم تلقائياً في بناء نسخة الماك."
+          gh release upload php-runtime "$FILE" -R "$GITHUB_REPOSITORY" --clobber
+          echo "✅ $FILE (macOS $MIN+)"
