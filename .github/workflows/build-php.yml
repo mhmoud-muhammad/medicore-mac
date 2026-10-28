@@ -22,7 +22,8 @@ permissions:
 env:
   # الإضافات التي يحتاجها نظام Medicore (sqlite، الصور، الشبكة، النصوص العربية) + OPcache للسرعة
   EXTENSIONS: ctype,curl,dom,exif,fileinfo,filter,gd,iconv,mbregex,mbstring,opcache,openssl,pdo,pdo_sqlite,phar,session,simplexml,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zlib
-  LIBS: libjpeg,freetype
+  # ليس LIBS: هذا اسم متغير قياسي لأدوات البناء (مكتبات الربط) فيُفسد بناء OpenSSL وغيره
+  GD_LIBS: libjpeg,freetype
 
 jobs:
   php:
@@ -52,12 +53,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PHP_VERSION: ${{ github.event.inputs.php }}
-        run: ./spc download --with-php="$PHP_VERSION" --for-extensions="$EXTENSIONS" --for-libs="$LIBS" --retry=3
+        run: ./spc download --with-php="$PHP_VERSION" --for-extensions="$EXTENSIONS" --for-libs="$GD_LIBS" --retry=3
 
       - name: البناء لـ macOS ${{ matrix.min }}
         env:
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.min }}
-        run: ./spc build "$EXTENSIONS" --with-libs="$LIBS" --build-cli
+        run: ./spc build "$EXTENSIONS" --with-libs="$GD_LIBS" --build-cli
+
+      - name: سجلات البناء عند الفشل
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: spc-log-${{ matrix.arch }}
+          path: log/
 
       - name: فحص
         env:
